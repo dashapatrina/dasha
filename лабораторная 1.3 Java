@@ -1,1 +1,437 @@
 
+#Бинарная куча 
+
+import java.util.Arrays;
+
+public class BinaryHeap<T extends Comparable<T>> {
+    private T[] heap;         // Массив для хранения элементов кучи
+    private int size;         // Текущий размер кучи
+    private boolean isMaxHeap;// Тип кучи: true - max-куча, false - min-куча
+
+    @SuppressWarnings("unchecked")
+    public BinaryHeap(boolean isMax) {
+        this.isMaxHeap = isMax;
+        heap = (T[]) new Comparable[2]; // Начальный размер массива
+        heap[0] = null; // Первая ячейка резервируется под фиктивный элемент
+        heap[1] = null;
+        size = 0;
+    }
+
+    // Удвоение размера массива при необходимости
+    private void doubleTabSize() {
+        T[] newHeap = Arrays.copyOf(heap, heap.length * 2);
+        heap = newHeap;
+    }
+
+    // Восстановление порядка кучи при движении вверх
+    private void heapifyUp(int index) {
+        while (index > 1) {
+            int parentIndex = index / 2;
+            if ((isMaxHeap && heap[index].compareTo(heap[parentIndex]) > 0) ||
+                (!isMaxHeap && heap[index].compareTo(heap[parentIndex]) < 0)) {
+                T temp = heap[index];
+                heap[index] = heap[parentIndex];
+                heap[parentIndex] = temp;
+                index = parentIndex;
+            } else {
+                break;
+            }
+        }
+    }
+
+    // Восстановление порядка кучи при движении вниз
+    private void heapifyDown(int index) {
+        int leftChildIndex = 2 * index;
+        int rightChildIndex = 2 * index + 1;
+        int bestIndex = index;
+
+        if (leftChildIndex <= size && (
+                (isMaxHeap && heap[leftChildIndex].compareTo(heap[bestIndex]) > 0) ||
+                (!isMaxHeap && heap[leftChildIndex].compareTo(heap[bestIndex]) < 0))) {
+            bestIndex = leftChildIndex;
+        }
+
+        if (rightChildIndex <= size && (
+                (isMaxHeap && heap[rightChildIndex].compareTo(heap[bestIndex]) > 0) ||
+                (!isMaxHeap && heap[rightChildIndex].compareTo(heap[bestIndex]) < 0))) {
+            bestIndex = rightChildIndex;
+        }
+
+        if (bestIndex != index) {
+            T temp = heap[index];
+            heap[index] = heap[bestIndex];
+            heap[bestIndex] = temp;
+            heapifyDown(bestIndex);
+        }
+    }
+
+    // Добавление элемента в кучу
+    public void add(T newElement) {
+        if (size == heap.length - 1) {
+            doubleTabSize();
+        }
+        size++;
+        heap[size] = newElement;
+        heapifyUp(size);
+    }
+
+    // Удаление верхнего элемента (минимального или максимального)
+    public T pop() {
+        if (size < 1) {
+            throw new IllegalStateException("Heap is empty");
+        }
+        T topElement = heap[1];
+        heap[1] = heap[size];
+        size--;
+        heapifyDown(1);
+        return topElement;
+    }
+
+    // Вернуть верхний элемент (без удаления)
+    public T peek() {
+        if (size < 1) {
+            throw new IllegalStateException("Heap is empty");
+        }
+        return heap[1];
+    }
+
+    // Проверка, пуста ли куча
+    public boolean isEmpty() {
+        return size == 0;
+    }
+
+    // Вывод элементов кучи (для отладки)
+    public void printHeap() {
+        for (int i = 1; i <= size; i++) {
+            System.out.print(heap[i] + " ");
+        }
+        System.out.println();
+    }
+
+    // Главный метод для демонстрации работы кучи
+    public static void main(String[] args) {
+        BinaryHeap<Integer> maxHeap = new BinaryHeap<>(true); // Max-куча
+
+        // Добавляем элементы
+        maxHeap.add(10);
+        maxHeap.add(5);
+        maxHeap.add(15);
+        maxHeap.add(20);
+
+        // Выводим верхний элемент
+        System.out.println("Верхний элемент: " + maxHeap.peek()); // Должно вернуть 20
+
+        // Извлекаем верхний элемент
+        System.out.println("Извлечённый элемент: " + maxHeap.pop()); // Должно вернуть 20
+
+        // Проверяем новый верхний элемент
+        System.out.println("Новый верхний элемент: " + maxHeap.peek()); // Должно вернуть 15
+    }
+}
+
+#Биноминальная куча
+
+import java.util.ArrayList;
+import java.util.List;
+
+// Класс для представления узла биноминального дерева
+class HeapNode {
+    int key;          // Значение узла
+    HeapNode parent;  // Родительский узел
+    HeapNode child;   // Первый ребёнок
+    HeapNode sibling; // Брат справа
+    int degree;       // Степень узла (количество детей)
+
+    public HeapNode(int key) {
+        this.key = key;
+        this.parent = null;
+        this.sibling = null;
+        this.child = null;
+        this.degree = 0;
+    }
+
+    // Вставка узла в корень
+    public void insertAsRoot(List<HeapNode> roots) {
+        roots.add(this);
+    }
+
+    // Объединение с другим узлом
+    public HeapNode merge(HeapNode other) {
+        if (this.key > other.key) {
+            return other.merge(this);
+        }
+        other.parent = this;
+        other.sibling = this.child;
+        this.child = other;
+        this.degree++;
+        return this;
+    }
+
+    // Удаление узла из цепочки корней
+    public void removeFromRoots(List<HeapNode> roots) {
+        roots.remove(this);
+    }
+
+    // Установить связь с братом
+    public void connectSiblings(HeapNode next) {
+        this.sibling = next;
+    }
+
+    // Метод для разделения дерева на отдельные корни
+    public List<HeapNode> splitIntoRoots() {
+        List<HeapNode> roots = new ArrayList<>();
+        HeapNode current = this.child;
+        while (current != null) {
+            current.parent = null;
+            roots.add(current);
+            current = current.sibling;
+        }
+        return roots;
+    }
+}
+
+// Класс для представления биноминальной кучи
+public class BinomialHeap {
+    private List<HeapNode> roots; // Список корней деревьев
+
+    public BinomialHeap() {
+        this.roots = new ArrayList<>();
+    }
+
+    // Добавление элемента в кучу
+    public void insert(int key) {
+        HeapNode newNode = new HeapNode(key);
+        newNode.insertAsRoot(roots);
+        consolidate();
+    }
+
+    // Консолидация деревьев
+    private void consolidate() {
+        int maxDegree = calculateMaxDegree();
+        List<List<HeapNode>> buckets = new ArrayList<>(maxDegree + 1);
+        for (int i = 0; i <= maxDegree; i++) {
+            buckets.add(new ArrayList<>());
+        }
+
+        for (HeapNode root : roots) {
+            int degree = root.degree;
+            while (!buckets.get(degree).isEmpty()) {
+                HeapNode other = buckets.get(degree).remove(0);
+                root = root.merge(other);
+                degree++;
+            }
+            buckets.get(degree).add(root);
+        }
+
+        roots.clear();
+        for (List<HeapNode> bucket : buckets) {
+            roots.addAll(bucket);
+        }
+    }
+
+    // Находим минимальное значение в куче
+    public int findMin() {
+        if (roots.isEmpty()) {
+            throw new RuntimeException("Heap is empty");
+        }
+        int min = Integer.MAX_VALUE;
+        for (HeapNode root : roots) {
+            if (root.key < min) {
+                min = root.key;
+            }
+        }
+        return min;
+    }
+
+    // Извлечение минимального элемента
+    public int extractMin() {
+        if (roots.isEmpty()) {
+            throw new RuntimeException("Heap is empty");
+        }
+        int min = Integer.MAX_VALUE;
+        HeapNode minNode = null;
+        for (HeapNode root : roots) {
+            if (root.key < min) {
+                min = root.key;
+                minNode = root;
+            }
+        }
+        minNode.removeFromRoots(roots);
+        List<HeapNode> newRoots = minNode.splitIntoRoots();
+        roots.addAll(newRoots);
+        consolidate();
+        return min;
+    }
+
+    // Проверка пустоты кучи
+    public boolean isEmpty() {
+        return roots.isEmpty();
+    }
+
+    // Частный метод для расчета необходимой вместимости массива
+    private int calculateMaxDegree() {
+        return (int)(Math.log(getTotalNodes()) / Math.log(2)) + 1;
+    }
+
+    // Метод подсчета общего количества узлов
+    private int getTotalNodes() {
+        int total = 0;
+        for (HeapNode root : roots) {
+            total += (1 << root.degree); // 2 ^ degree
+        }
+        return total;
+    }
+
+    // Главная функция для проверки работоспособности
+    public static void main(String[] args) {
+        BinomialHeap heap = new BinomialHeap();
+        heap.insert(10);
+        heap.insert(5);
+        heap.insert(15);
+        heap.insert(20);
+
+        System.out.println("Минимальный элемент: " + heap.findMin()); // output: 5
+        System.out.println("Извлеченный минимальный элемент: " + heap.extractMin()); // output: 5
+        System.out.println("Новый минимальный элемент: " + heap.findMin()); // output: 10
+    }
+}
+
+#Фибоначчиева куча
+
+public class FibonacciExample {
+    // Рекурсивный метод для вычисления n-го числа Фибоначчи
+    public static int fibonacciRecursive(int n) {
+        if (n <= 1) {
+            return n;
+        }
+        return fibonacciRecursive(n - 1) + fibonacciRecursive(n - 2);
+    }
+
+    public static void main(String[] args) {
+        // Выводим первые 10 чисел Фибоначчи
+        for (int i = 0; i < 10; i++) {
+            System.out.print(fibonacciRecursive(i) + " ");
+        }
+    }
+}
+
+#Хэш-таблица
+
+import java.util.LinkedList;
+import java.util.List;
+
+// Класс, представляющий пару ключ-значение
+class Entry<K, V> {
+    K key;
+    V value;
+
+    public Entry(K key, V value) {
+        this.key = key;
+        this.value = value;
+    }
+}
+
+// Реализация хэш-таблицы
+public class CustomHashTable<K, V> {
+    private List<LinkedList<Entry<K, V>>> table; // Массив корзин (ведёр)
+    private int size;                            // Текущий размер таблицы
+
+    // Конструктор с параметром ёмкости
+    public CustomHashTable(int initialCapacity) {
+        this.table = new ArrayList<>(initialCapacity);
+        for (int i = 0; i < initialCapacity; i++) {
+            table.add(new LinkedList<>());
+        }
+        this.size = 0;
+    }
+
+    // Хэш-функция для преобразования ключа в индекс ведра
+    private int hash(K key) {
+        return Math.abs(key.hashCode()) % table.size();
+    }
+
+    // Добавление пары ключ-значение
+    public void put(K key, V value) {
+        int index = hash(key);
+        LinkedList<Entry<K, V>> bucket = table.get(index);
+
+        // Проверяем, существует ли уже такой ключ
+        for (Entry<K, V> entry : bucket) {
+            if (entry.key.equals(key)) {
+                entry.value = value; // Обновляем значение, если ключ уже существует
+                return;
+            }
+        }
+
+        // Если ключ не найден, добавляем новую пару
+        bucket.add(new Entry<>(key, value));
+        size++;
+    }
+
+    // Получение значения по ключу
+    public V get(K key) {
+        int index = hash(key);
+        LinkedList<Entry<K, V>> bucket = table.get(index);
+
+        for (Entry<K, V> entry : bucket) {
+            if (entry.key.equals(key)) {
+                return entry.value;
+            }
+        }
+        return null;
+    }
+
+    // Удаление элемента по ключу
+    public void remove(K key) {
+        int index = hash(key);
+        LinkedList<Entry<K, V>> bucket = table.get(index);
+
+        for (Entry<K, V> entry : bucket) {
+            if (entry.key.equals(key)) {
+                bucket.remove(entry);
+                size--;
+                return;
+            }
+        }
+    }
+
+    // Проверка наличия ключа в таблице
+    public boolean containsKey(K key) {
+        int index = hash(key);
+        LinkedList<Entry<K, V>> bucket = table.get(index);
+
+        for (Entry<K, V> entry : bucket) {
+            if (entry.key.equals(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Получение размера таблицы
+    public int size() {
+        return size;
+    }
+
+    // Пример использования
+    public static void main(String[] args) {
+        CustomHashTable<String, Integer> customHashTable = new CustomHashTable<>(10);
+
+        // Добавляем элементы
+        customHashTable.put("John", 25);
+        customHashTable.put("Jane", 30);
+        customHashTable.put("Jim", 35);
+
+        // Доступ к элементам
+        System.out.println(customHashTable.get("John")); // Output: 25
+
+        // Удаляем элемент
+        customHashTable.remove("Jim");
+
+        // Проверяем наличие элемента
+        System.out.println(customHashTable.containsKey("Jim")); // Output: false
+
+        // Получаем размер
+        System.out.println(customHashTable.size()); // Output: 2
+    }
+}
