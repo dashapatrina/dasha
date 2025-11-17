@@ -1,0 +1,386 @@
+#алгоритм бинарной кучи 
+import heapq
+
+# Исходный список чисел
+someNumbers = [4, 2, 1, 2, 6, 2, 4, 3]
+
+# Преобразование списка в кучу (heapify)
+heapq.heapify(someNumbers)
+
+# Вывод начальной кучи
+print("Исходная куча:", someNumbers)
+
+# Добавление нового элемента в кучу
+heapq.heappush(someNumbers, 0)
+
+# Вывод кучи после добавления элемента
+print("Куча после добавления элемента:", someNumbers)
+
+# Извлечение минимального элемента из кучи
+someValue = heapq.heappop(someNumbers)
+
+# Вывод извлечённого элемента и оставшейся кучи
+print("Извлечённый минимум:", someValue)
+print("Куча после извлечения минимума:", someNumbers)
+
+#алгоритм биноминальной кучи 
+class BinomialTree:
+    """Представление отдельного биномиального дерева."""
+    def __init__(self, key):
+        self.key = key      # ключ узла
+        self.children = []  # дети данного узла
+        self.order = 0      # порядок дерева (количество детей)
+
+    def link_trees(self, tree):
+        """
+        Процедура присоединения другого дерева к данному, увеличивая порядок.
+        """
+        self.children.append(tree)
+        self.order += 1
+
+
+class BinomialHeap:
+    """Представление биноминальной кучи."""
+    def __init__(self):
+        self.trees = []
+
+    def insert(self, key):
+        """
+        Вставка нового элемента в кучу.
+        Создание нового дерева и последующее слияние.
+        """
+        new_tree = BinomialTree(key)
+        new_heap = BinomialHeap()
+        new_heap.trees.append(new_tree)
+        self.union(new_heap)
+
+    def union(self, another_heap):
+        """
+        Объединение двух биноминальных куч.
+        """
+        result = []
+        first = iter(self.trees)
+        second = iter(another_heap.trees)
+        carry = None
+
+        try:
+            while True:
+                f_tree = next(first, None)
+                s_tree = next(second, None)
+                
+                # Определение текущей комбинации деревьев
+                trees = [f_tree, s_tree, carry]
+                orders = [(tree.order if tree else float('inf'), idx) for idx, tree in enumerate(trees)]
+                orders.sort()
+
+                # Выбор действий в зависимости от комбинаций
+                if len(orders) == 1:
+                    break
+                elif len(orders) == 2:
+                    if orders[0][0] == orders[1][0]:
+                        carry = trees[orders[0][1]].link_trees(trees[orders[1][1]])
+                    else:
+                        result.append(trees[orders[0][1]])
+                else:
+                    if orders[0][0] == orders[1][0] == orders[2][0]:
+                        carry = trees[orders[0][1]]
+                        carry.link_trees(trees[orders[1][1]])
+                        carry.link_trees(trees[orders[2][1]])
+                    elif orders[0][0] == orders[1][0]:
+                        carry = trees[orders[0][1]].link_trees(trees[orders[1][1]])
+                        result.append(trees[orders[2][1]])
+                    else:
+                        result.append(trees[orders[0][1]])
+
+        except StopIteration:
+            pass
+
+        # Завершение сборки результатов
+        self.trees = result + ([carry] if carry else [])
+
+    def extract_min(self):
+        """
+        Нахождение и удаление минимального элемента.
+        Возвращает найденный минимум.
+        """
+        if not self.trees:
+            return None
+
+        # Поиск минимального корня
+        min_root_idx = min(range(len(self.trees)), key=lambda i: self.trees[i].key)
+        min_val = self.trees[min_root_idx].key
+
+        # Разрушаем дерево с минимальным корнем
+        children = self.trees[min_root_idx].children[:]
+        del self.trees[min_root_idx]
+
+        # Формируем новую кучу из детей
+        new_heap = BinomialHeap()
+        for child in reversed(children):
+            new_heap.trees.append(child)
+
+        # Объединяем с основной кучей
+        self.union(new_heap)
+
+        return min_val
+
+    def get_min(self):
+        """
+        Возврат минимального элемента (без удаления).
+        """
+        if not self.trees:
+            return None
+        return min(tree.key for tree in self.trees)
+
+    def is_empty(self):
+        """
+        Проверка, пуста ли куча?
+        """
+        return len(self.trees) == 0
+
+#алгоритм фибоначчиевой кучи 
+
+class FibonacciHeapNode:
+    def __init__(self, key):
+        self.key = key
+        self.parent = None
+        self.child = None
+        self.left = None
+        self.right = None
+        self.mark = False
+        self.degree = 0
+
+class FibonacciHeap:
+    def __init__(self):
+        self.min_node = None
+        self.n_nodes = 0
+
+    def insert(self, key):
+        new_node = FibonacciHeapNode(key)
+        if self.min_node is None:
+            self.min_node = new_node
+        else:
+            # Добавляем узел в корень списка
+            new_node.left = self.min_node
+            new_node.right = self.min_node.right
+            self.min_node.right.left = new_node
+            self.min_node.right = new_node
+            
+            # Обновляем минимальный узел, если нужно
+            if new_node.key < self.min_node.key:
+                self.min_node = new_node
+        self.n_nodes += 1
+
+    def extract_min(self):
+        if self.min_node is None:
+            return None
+        
+        min_node = self.min_node
+        # Убираем минимальный узел из списка корней
+        if min_node.right == min_node:
+            self.min_node = None
+        else:
+            min_node.left.right = min_node.right
+            min_node.right.left = min_node.left
+            self.min_node = min_node.right
+        
+        # Переходим ко второму этапу: консолидация (обрабатываем детей минимального узла)
+        if min_node.child is not None:
+            cur_child = min_node.child
+            while True:
+                next_child = cur_child.right
+                # Переносим ребёнка в корни
+                cur_child.left = self.min_node.left
+                cur_child.right = self.min_node
+                self.min_node.left.right = cur_child
+                self.min_node.left = cur_child
+                cur_child.parent = None
+                if next_child == min_node.child:
+                    break
+                cur_child = next_child
+        
+        # Консолидация корней
+        consolidated_roots = [None] * (self.n_nodes.bit_length() + 1)
+        current = self.min_node
+        if current is not None:
+            roots_to_consolidate = []
+            while True:
+                roots_to_consolidate.append(current)
+                current = current.right
+                if current == self.min_node:
+                    break
+            
+            for root in roots_to_consolidate:
+                deg = root.degree
+                while consolidated_roots[deg] is not None:
+                    other = consolidated_roots[deg]
+                    if root.key > other.key:
+                        root, other = other, root
+                    
+                    # Соединяем узлы
+                    other.left.right = other.right
+                    other.right.left = other.left
+                    root.child = other
+                    other.parent = root
+                    root.degree += 1
+                    consolidated_roots[deg] = None
+                    deg += 1
+                consolidated_roots[deg] = root
+            
+            # Теперь находим новый минимальный узел
+            self.min_node = None
+            for root in consolidated_roots:
+                if root is not None:
+                    if self.min_node is None or root.key < self.min_node.key:
+                        self.min_node = root
+        
+        self.n_nodes -= 1
+        return min_node.key
+
+    def decrease_key(self, node, new_key):
+        if new_key > node.key:
+            raise ValueError("Новый ключ больше существующего.")
+        node.key = new_key
+        parent = node.parent
+        if parent is not None and node.key < parent.key:
+            # Восстанавливаем структуру
+            self.cut_and_cascade(parent, node)
+        if node.key < self.min_node.key:
+            self.min_node = node
+
+    def cut_and_cascade(self, parent, node):
+        # Вырезаем узел из-под родителя
+        if parent.child == node:
+            parent.child = node.right
+        node.left.right = node.right
+        node.right.left = node.left
+        parent.degree -= 1
+        node.parent = None
+        node.mark = False
+        
+        # Двигаемся дальше по каскаду
+        grand_parent = parent.parent
+        if grand_parent is not None:
+            if parent.mark:
+                self.cut_and_cascade(grand_parent, parent)
+            else:
+                parent.mark = True
+
+# Пример использования:
+fib_heap = FibonacciHeap()
+fib_heap.insert(10)
+fib_heap.insert(5)
+fib_heap.insert(15)
+fib_heap.insert(3)
+
+print("Минимальный элемент:", fib_heap.extract_min())  # выведет 3
+
+#алгоритм хэш-таблица
+
+class HashTable:
+    def __init__(self, size=10):
+        """
+        Инициализирует хеш-таблицу с заданным размером.
+        Внутренний массив будет хранить списки (цепочки) для разрешения коллизий.
+        """
+        self.array_size = size
+        # Создаем массив, где каждая ячейка изначально пуста (None)
+        self.array = [None] * self.array_size
+
+    def hash_function(self, key):
+        """
+        Генерирует хеш-код для ключа.
+        Используем встроенную функцию hash() и оператор взятия остатка,
+        чтобы индекс не вышел за пределы размера массива.
+        """
+        return hash(key) % self.array_size
+
+    def put(self, key, value):
+        """
+        Вставляет пару ключ-значение в таблицу.
+        Если ключ уже существует, его значение обновляется.
+        """
+        index = self.hash_function(key)
+        
+        # Если ячейка (bucket) по этому индексу еще не создана, создаем пустой список
+        if self.array[index] is None:
+            self.array[index] = []
+        
+        bucket = self.array[index]
+        
+        # Проверяем, существует ли уже такой ключ в цепочке
+        for i, (existing_key, _) in enumerate(bucket):
+            if existing_key == key:
+                # Если ключ найден, обновляем значение и выходим
+                bucket[i] = (key, value)
+                return
+        
+        # Если ключ не найден, добавляем новую пару (ключ, значение) в цепочку
+        bucket.append((key, value))
+
+    def get(self, key):
+        """
+        Находит и возвращает значение по ключу.
+        Если ключ не найден, вызывает исключение KeyError.
+        """
+        index = self.hash_function(key)
+        bucket = self.array[index]
+        
+        # Если ячейка пуста или ключа нет в цепочке, его нет в таблице
+        if bucket is None:
+            raise KeyError(f"Ключ '{key}' не найден.")
+            
+        # Ищем ключ в цепочке
+        for existing_key, value in bucket:
+            if existing_key == key:
+                return value
+        
+        # Если прошли всю цепочку и не нашли, вызываем исключение
+        raise KeyError(f"Ключ '{key}' не найден.")
+
+    def remove(self, key):
+        """
+        Удаляет пару ключ-значение по ключу.
+        Если ключ не найден, вызывает исключение KeyError.
+        """
+        index = self.hash_function(key)
+        bucket = self.array[index]
+
+        if bucket is None:
+            raise KeyError(f"Ключ '{key}' не найден.")
+
+        # Ищем ключ в цепочке, чтобы удалить его
+        for i, (existing_key, _) in enumerate(bucket):
+            if existing_key == key:
+                # Удаляем элемент из списка по его индексу
+                del bucket[i]
+                return
+        
+        # Если ключ не был найден в цепочке
+        raise KeyError(f"Ключ '{key}' не найден.")
+
+# --- Пример использования ---
+
+# Создаем экземпляр хеш-таблицы
+hash_table = HashTable(10)
+
+# Добавляем элементы
+hash_table.put("Jane Doe", "ID1234")
+hash_table.put("John Smith", "ID4567")
+# Пример коллизии: "Jane Doe" и "Doe Jane" могут дать один и тот же хеш-индекс
+hash_table.put("Doe Jane", "ID9876") 
+
+# Получаем значение по ключу
+print(f'ID для "Jane Doe": {hash_table.get("Jane Doe")}')
+# Вывод: ID для "Jane Doe": ID1234
+
+# Удаляем элемент
+hash_table.remove("John Smith")
+print('"John Smith" был удален.')
+
+# Пытаемся получить удаленный элемент
+try:
+    print(hash_table.get("John Smith"))
+except KeyError as e:
+    print(e)
+    # Вывод: Ключ 'John Smith' не найден.
