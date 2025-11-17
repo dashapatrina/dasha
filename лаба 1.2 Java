@@ -1,0 +1,50 @@
+#мультисписок
+import java.util.ArrayList;
+
+class Main {
+    public static void main(String[] args) {
+        ArrayList<ArrayList<Integer>> nested_list = new ArrayList<>();
+        nested_list.add(new ArrayList<>());
+        nested_list.get(0).add(1);
+        nested_list.get(0).add(2);
+        
+        System.out.println(nested_list.get(0).get(1));  // выводит 2
+    }
+}
+
+#очереди
+import java.util.LinkedList;
+
+class Main {
+    public static void main(String[] args) {
+        LinkedList<String> queue = new LinkedList<>();
+        queue.addLast("Alice");
+        queue.addLast("Bob");
+        System.out.println(queue.removeFirst());  // выводит Alice
+    }
+}
+
+#деки
+import java.util.ArrayDeque;
+
+class Main {
+    public static void main(String[] args) {
+        ArrayDeque<Integer> deque = new ArrayDeque<>();
+        deque.addFirst(0);
+        deque.addLast(3);
+        System.out.println(deque.getLast());  // выводит 3
+    }
+}
+
+#приоритетные очереди
+import java.util.PriorityQueue;
+
+class Main {
+    public static void main(String[] args) {
+        PriorityQueue<Integer> pq = new PriorityQueue<>();
+        pq.add(10);
+        pq.add(5);
+        pq.add(15);
+        System.out.println(pq.poll());  // выводит минимальный элемент (5)
+    }
+}
