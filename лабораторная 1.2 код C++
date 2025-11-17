@@ -1,1 +1,46 @@
 
+#мультисписок 
+#include <vector>
+using namespace std;
+
+int main() {
+    vector<vector<int>> nested_vector{{1, 2}, {3, 4}};
+    cout << nested_vector[0][1];  // выводит 2
+    return 0;
+}
+
+#очереди 
+#include <queue>
+using namespace std;
+
+int main() {
+    queue<string> my_queue{"Alice", "Bob"};
+    my_queue.push("Charlie");
+    cout << my_queue.front();  // выводит Alice
+    return 0;
+}
+
+#деки 
+#include <deque>
+using namespace std;
+
+int main() {
+    deque<int> deq{1, 2};
+    deq.push_front(0);  // добавить в начало
+    deq.push_back(3);   // добавить в конец
+    cout << deq.back();  // выводит 3
+    return 0;
+}
+
+#приоритетные очереди
+#include <queue>
+using namespace std;
+
+int main() {
+    priority_queue<int> pq;
+    pq.push(10);
+    pq.push(5);
+    pq.push(15);
+    cout << pq.top();  // выводит максимальный элемент (15)
+    return 0;
+} 
