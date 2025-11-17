@@ -15,3 +15,14 @@ deque_obj = deque([1, 2])
 deque_obj.appendleft(0)
 deque_obj.append(3)
 print(deque_obj)  # [0, 1, 2, 3]
+
+#приоритетные очереди
+from queue import PriorityQueue
+
+pq = PriorityQueue()
+pq.put((2, 'B'))
+pq.put((1, 'A'))
+pq.put((3, 'C'))
+
+while not pq.empty():
+    print(pq.get()[1])  # A B C
