@@ -1,27 +1,40 @@
 # Задание 14. Имитация отжига: размещение точек
-Условие. Разместить n точек на плоскости так, чтобы минимизировать сумму расстояний до
+Условие.
+
+Разместить n точек на плоскости так, чтобы минимизировать сумму расстояний до
 заданных центров Ci.
+
 Алгоритм: имитация отжига с перемещением точек.
+
 Язык примера: Python
 
+```python
 def sa_placement(centers, n_points, temp, cooling):
  points = [[random.uniform(-10, 10), random.uniform(-10, 10)] for _ in range(n_points)]
  current_energy = sum(distance_to_centers(p, centers) for p in points)
  while temp > 1e-6:
+```
+
  # ДОПИСАТЬ: случайно сдвинуть одну точку
+ ```python
  new_points = [p[:] for p in points]
  idx = random.randint(0, n_points - 1)
  new_points[idx][0] += random.uniform(-1, 1) * temp
  new_points[idx][1] += random.uniform(-1, 1) * temp
  new_energy = sum(distance_to_centers(p, centers) for p in new_points)
+```
+
  # ДОПИСАТЬ: принять/отклонить новый набор по критерию Метрополиса
+ ```python
  temp *= cooling
  return points
+ ```
+
 Что дописать: условие принятия нового решения (с math.exp).
 
 ### Код:
 
-
+```python
 import random
 import math
 
@@ -63,6 +76,8 @@ def sa_placement(centers, n_points, temp, cooling):
         temp *= cooling
     
     return points
+```
+
 
 ### Определение
 
