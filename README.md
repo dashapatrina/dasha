@@ -2,8 +2,6 @@
 
 **Тип сети:** Bidirectional LSTM (BiLSTM)  
 **Фреймворк:** TensorFlow / Keras  
-**Автор:** KorbenDl  
-**Дата:** 2025
 
 ---
 
