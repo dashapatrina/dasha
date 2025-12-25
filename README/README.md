@@ -1,4 +1,4 @@
-
+'''python 
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # скрыть лишние INFO от TensorFlow
 
@@ -388,3 +388,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = ToxicApp(root)
     root.mainloop()
+'''
