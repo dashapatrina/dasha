@@ -1,0 +1,389 @@
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # скрыть лишние INFO от TensorFlow
+
+import json
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use("TkAgg")
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+
+import tensorflow as tf
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.preprocessing.text import tokenizer_from_json
+
+
+class ToxicApp:
+    """
+    Оконное приложение для модерации текстов.
+    Использует заранее обученную нейросеть (TensorFlow) и токенизатор.
+    Позволяет:
+      - загружать модель, токенизатор и CSV с комментариями;
+      - проверять отдельный текст;
+      - строить гистограмму вероятности токсичности;
+      - формировать текстовый и HTML‑отчёт по проекту.
+    """
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Приложение модерации текста (выявление токсичности)")
+
+        # Развернуть окно на весь экран
+        try:
+            self.root.state('zoomed')  # Windows
+        except Exception:
+            self.root.attributes('-zoomed', True)
+
+        # Ссылки на модель / токенизатор / данные
+        self.model = None
+        self.tokenizer = None
+        self.max_len = 200  # должен совпадать с MAX_LEN из обучения
+        self.data_df = None
+        self.predictions = None
+
+        # ---------- Верхняя панель: выбор файлов ----------
+        top_frame = ttk.LabelFrame(root, text="Загрузка ресурсов")
+        top_frame.pack(fill="x", padx=5, pady=5)
+
+        # файл модели
+        self.model_path_var = tk.StringVar()
+        ttk.Label(top_frame, text="Файл модели (.keras / .h5):").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        ttk.Entry(top_frame, textvariable=self.model_path_var, width=60).grid(row=0, column=1, padx=5, pady=2)
+        ttk.Button(top_frame, text="Обзор...", command=self.browse_model).grid(row=0, column=2, padx=5, pady=2)
+
+        # файл токенизатора
+        self.tokenizer_path_var = tk.StringVar()
+        ttk.Label(top_frame, text="Файл токенизатора (tokenizer.json):").grid(row=1, column=0, sticky="w", padx=5, pady=2)
+        ttk.Entry(top_frame, textvariable=self.tokenizer_path_var, width=60).grid(row=1, column=1, padx=5, pady=2)
+        ttk.Button(top_frame, text="Обзор...", command=self.browse_tokenizer).grid(row=1, column=2, padx=5, pady=2)
+
+        # файл данных (CSV)
+        self.data_path_var = tk.StringVar()
+        ttk.Label(top_frame, text="CSV с текстами (train.csv и т.п.):").grid(row=2, column=0, sticky="w", padx=5, pady=2)
+        ttk.Entry(top_frame, textvariable=self.data_path_var, width=60).grid(row=2, column=1, padx=5, pady=2)
+        ttk.Button(top_frame, text="Обзор...", command=self.browse_data).grid(row=2, column=2, padx=5, pady=2)
+
+        ttk.Button(
+            top_frame,
+            text="Загрузить модель и токенизатор",
+            command=self.load_model_and_tokenizer
+        ).grid(row=3, column=0, columnspan=3, padx=5, pady=5, sticky="we")
+
+        # ---------- Средняя панель: ввод текста и кнопки ----------
+        middle_frame = ttk.LabelFrame(root, text="Проверка текста")
+        middle_frame.pack(fill="both", expand=True, padx=5, pady=5)
+
+        ttk.Label(middle_frame, text="Введите текст для проверки:").pack(anchor="w", padx=5, pady=2)
+
+        self.input_text = tk.Text(middle_frame, height=5)
+        self.input_text.pack(fill="x", padx=5, pady=2)
+
+        btn_frame = ttk.Frame(middle_frame)
+        btn_frame.pack(fill="x", padx=5, pady=2)
+
+        ttk.Button(
+            btn_frame, text="Проверить токсичность",
+            command=self.check_single_text
+        ).pack(side="left", padx=5)
+
+        ttk.Button(
+            btn_frame, text="Построить график по CSV",
+            command=self.plot_from_csv
+        ).pack(side="left", padx=5)
+
+        ttk.Button(
+            btn_frame, text="Сформировать текстовый отчёт",
+            command=self.generate_text_report
+        ).pack(side="left", padx=5)
+
+        ttk.Button(
+            btn_frame, text="Сформировать HTML‑отчёт",
+            command=self.generate_html_report
+        ).pack(side="left", padx=5)
+
+        # ---------- Нижняя панель: график + отчёт ----------
+        bottom_frame = ttk.Frame(root)
+        bottom_frame.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # место под график matplotlib
+        graph_frame = ttk.LabelFrame(bottom_frame, text="График распределения токсичности")
+        graph_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+
+        self.figure = Figure(figsize=(5, 4), dpi=100)
+        self.ax = self.figure.add_subplot(111)
+        self.ax.set_title("Нет данных")
+        self.ax.set_xlabel("Вероятность токсичности")
+        self.ax.set_ylabel("Количество")
+
+        self.canvas = FigureCanvasTkAgg(self.figure, master=graph_frame)
+        self.canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        # поле для текстового отчёта
+        report_frame = ttk.LabelFrame(bottom_frame, text="Отчёт")
+        report_frame.pack(side="right", fill="both", expand=True, padx=5, pady=5)
+
+        self.report_text = tk.Text(report_frame, wrap="word")
+        self.report_text.pack(fill="both", expand=True)
+
+    # ----------- Обработчики выбора файлов -----------
+    def browse_model(self):
+        path = filedialog.askopenfilename(
+            title="Выберите файл модели",
+            filetypes=[("Keras model", "*.keras *.h5"), ("All files", "*.*")]
+        )
+        if path:
+            self.model_path_var.set(path)
+
+    def browse_tokenizer(self):
+        path = filedialog.askopenfilename(
+            title="Выберите tokenizer.json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        if path:
+            self.tokenizer_path_var.set(path)
+
+    def browse_data(self):
+        path = filedialog.askopenfilename(
+            title="Выберите CSV с текстами",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if path:
+            self.data_path_var.set(path)
+
+    # ----------- Загрузка модели и токенизатора -----------
+    def load_model_and_tokenizer(self):
+        model_path = self.model_path_var.get().strip()
+        tok_path = self.tokenizer_path_var.get().strip()
+
+        if not model_path or not tok_path:
+            messagebox.showerror("Ошибка", "Укажите путь к файлу модели и токенизатору.")
+            return
+
+        try:
+            self.model = tf.keras.models.load_model(model_path)
+        except Exception as e:
+            messagebox.showerror("Ошибка загрузки модели", str(e))
+            return
+
+        try:
+            with open(tok_path, "r", encoding="utf-8") as f:
+                tok_json = f.read()
+            self.tokenizer = tokenizer_from_json(tok_json)
+        except Exception as e:
+            messagebox.showerror("Ошибка загрузки токенизатора", str(e))
+            return
+
+        # Попробуем определить max_len по входу модели
+        try:
+            input_shape = self.model.input_shape
+            if isinstance(input_shape, tuple) and len(input_shape) >= 2:
+                self.max_len = int(input_shape[1])
+        except Exception:
+            pass
+
+        messagebox.showinfo(
+            "Успех",
+            f"Модель и токенизатор успешно загружены.\nmax_len для паддинга: {self.max_len}"
+        )
+
+    # ----------- Проверка одного текста -----------
+    def check_single_text(self):
+        if self.model is None or self.tokenizer is None:
+            messagebox.showerror("Ошибка", "Сначала загрузите модель и токенизатор.")
+            return
+
+        text = self.input_text.get("1.0", "end").strip()
+        if not text:
+            messagebox.showwarning("Внимание", "Введите текст для анализа.")
+            return
+
+        seq = self.tokenizer.texts_to_sequences([text])
+        pad = pad_sequences(seq, maxlen=self.max_len, padding="post", truncating="post")
+        prob = float(self.model.predict(pad, verbose=0)[0][0])
+
+        result = f"Вероятность токсичности: {prob:.4f}\n"
+        if prob >= 0.5:
+            result += "Классификация: ТОКСИЧНЫЙ / АГРЕССИВНЫЙ\n"
+        else:
+            result += "Классификация: НЕ токсичный\n"
+
+        messagebox.showinfo("Результат", result)
+
+        self.report_text.insert("end", "=== Проверка отдельного текста ===\n")
+        self.report_text.insert("end", text + "\n" + result + "\n\n")
+        self.report_text.see("end")
+
+    # ----------- Построение графика по CSV -----------
+    def plot_from_csv(self):
+        if self.model is None or self.tokenizer is None:
+            messagebox.showerror("Ошибка", "Сначала загрузите модель и токенизатор.")
+            return
+
+        data_path = self.data_path_var.get().strip()
+        if not data_path:
+            messagebox.showerror("Ошибка", "Укажите CSV-файл с текстами.")
+            return
+
+        try:
+            df = pd.read_csv(data_path)
+        except Exception as e:
+            messagebox.showerror("Ошибка чтения CSV", str(e))
+            return
+
+        text_col = None
+        for cand in ["comment_text", "text", "comment", "content"]:
+            if cand in df.columns:
+                text_col = cand
+                break
+
+        if text_col is None:
+            messagebox.showerror(
+                "Ошибка",
+                "Не найдена колонка с текстом (ожидались: comment_text, text, comment, content)."
+            )
+            return
+
+        texts = df[text_col].astype(str).values
+
+        MAX_SAMPLES = 5000
+        if len(texts) > MAX_SAMPLES:
+            texts = texts[:MAX_SAMPLES]
+
+        seq = self.tokenizer.texts_to_sequences(texts)
+        pad = pad_sequences(seq, maxlen=self.max_len, padding="post", truncating="post")
+        probs = self.model.predict(pad, verbose=0).ravel()
+        self.predictions = probs
+
+        # Гистограмма
+        self.ax.clear()
+        self.ax.hist(probs, bins=20, color="steelblue", edgecolor="black")
+        self.ax.set_title("Распределение вероятности токсичности")
+        self.ax.set_xlabel("Вероятность токсичности")
+        self.ax.set_ylabel("Количество комментариев")
+        self.ax.grid(True)
+
+        # Сохранение графика в корень проекта
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        img_path = os.path.join(root_dir, "distribution.png")
+        self.figure.savefig(img_path, dpi=150)
+
+        self.canvas.draw()
+
+        mean_prob = float(np.mean(probs))
+        toxic_ratio = float((probs >= 0.5).mean())
+
+        self.report_text.insert("end", "=== Анализ CSV ===\n")
+        self.report_text.insert("end", f"Файл: {data_path}\n")
+        self.report_text.insert("end", f"Количество проанализированных текстов: {len(probs)}\n")
+        self.report_text.insert("end", f"Средняя вероятность токсичности: {mean_prob:.4f}\n")
+        self.report_text.insert("end", f"Доля токсичных (prob >= 0.5): {toxic_ratio:.4f}\n\n")
+        self.report_text.see("end")
+
+        messagebox.showinfo("График сохранён", f"График распределения сохранён в {img_path}")
+
+    # ----------- Текстовый отчёт в окне -----------
+    def generate_text_report(self):
+        if self.predictions is None:
+            messagebox.showwarning(
+                "Внимание",
+                "Сначала постройте график по CSV (кнопка 'Построить график по CSV')."
+            )
+            return
+
+        probs = self.predictions
+        mean_prob = float(np.mean(probs))
+        toxic_ratio = float((probs >= 0.5).mean())
+
+        self.report_text.insert("end", "=== Сводный отчёт по приложению ===\n")
+        self.report_text.insert(
+            "end",
+            f"- Оконное приложение для модерации токсичных комментариев.\n"
+            f"- Модель: {self.model_path_var.get()}\n"
+            f"- Токенизатор: {self.tokenizer_path_var.get()}\n"
+            f"- CSV‑файл: {self.data_path_var.get()}\n"
+            f"- Количество проверенных текстов: {len(probs)}\n"
+            f"- Средняя вероятность токсичности: {mean_prob:.4f}\n"
+            f"- Доля текстов, классифицированных как токсичные (>= 0.5): {toxic_ratio:.4f}\n\n"
+        )
+        self.report_text.see("end")
+
+    # ----------- HTML‑отчёт в корень проекта -----------
+    def generate_html_report(self):
+        if self.predictions is None:
+            messagebox.showwarning(
+                "Внимание",
+                "Сначала постройте график по CSV (кнопка 'Построить график по CSV')."
+            )
+            return
+
+        probs = self.predictions
+        mean_prob = float(np.mean(probs))
+        toxic_ratio = float((probs >= 0.5).mean())
+
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        img_name = "distribution.png"
+        img_path = os.path.join(root_dir, img_name)
+        html_path = os.path.join(root_dir, "report.html")
+
+        if not os.path.exists(img_path):
+            self.figure.savefig(img_path, dpi=150)
+
+        html = f"""
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Отчёт по приложению модерации контента</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; margin: 20px; }}
+    h1, h2 {{ color: #2c3e50; }}
+    pre {{ background: #f5f5f5; padding: 10px; white-space: pre-wrap; }}
+  </style>
+</head>
+<body>
+  <h1>Оконное приложение для выявления токсичности в тексте</h1>
+
+  <h2>1. Назначение</h2>
+  <p>
+    Разработано прикладное оконное приложение на Python (Tkinter + TensorFlow)
+    для модерации пользовательского контента. Пользователь может загружать
+    подготовленную нейросетевую модель, CSV‑файл с комментариями и
+    интерактивно анализировать тексты через графический интерфейс.
+  </p>
+
+  <h2>2. Используемые файлы</h2>
+  <pre>
+Модель:      {self.model_path_var.get()}
+Токенизатор: {self.tokenizer_path_var.get()}
+CSV‑файл:    {self.data_path_var.get()}
+  </pre>
+
+  <h2>3. Сводная статистика по анализу выборки</h2>
+  <pre>
+Количество проверенных текстов: {len(probs)}
+Средняя вероятность токсичности: {mean_prob:.4f}
+Доля текстов с вероятностью токсичности ≥ 0.5: {toxic_ratio:.4f}
+  </pre>
+
+  <h2>4. Визуализация распределения токсичности</h2>
+  <p>Гистограмма построена по предсказаниям нейронной сети для загруженного CSV.</p>
+  <img src="{img_name}" style="max-width: 100%; height: auto; border:1px solid #ccc;">
+</body>
+</html>
+""".strip()
+
+        try:
+            with open(html_path, "w", encoding="utf-8") as f:
+                f.write(html)
+            messagebox.showinfo("HTML‑отчёт", f"HTML‑отчёт сохранён в {html_path}")
+        except Exception as e:
+            messagebox.showerror("Ошибка сохранения HTML‑отчёта", str(e))
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ToxicApp(root)
+    root.mainloop()
